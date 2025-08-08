@@ -1,5 +1,12 @@
 package vault
 
+import (
+	"errors"
+	"github.com/hashicorp/vault/api"
+	"net/http"
+	"strings"
+)
+
 const (
 	pathPrefix string = "v1"
 )
@@ -51,7 +58,7 @@ func (k *KVv1) Read(key string) (*KVv1ReadResponse, error) {
 		}, readRes, nil,
 	)
 	if err != nil {
-		return nil, err
+		return nil, k.mapError(err)
 	}
 
 	return readRes, nil
@@ -93,4 +100,17 @@ func (k *KVv1) Delete(key string) error {
 	}
 
 	return nil
+}
+
+func (k *KVv1) mapError(err error) error {
+	resErr := &api.ResponseError{}
+	if errors.As(err, &resErr) {
+		if resErr.StatusCode == http.StatusNotFound {
+			if strings.Contains(err.Error(), "request failed") {
+				return nil
+			}
+		}
+	}
+
+	return err
 }

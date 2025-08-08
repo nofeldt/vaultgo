@@ -1,5 +1,12 @@
 package vault
 
+import (
+	"errors"
+	"github.com/hashicorp/vault/api"
+	"net/http"
+	"strings"
+)
+
 type PKI struct {
 	Service
 }
@@ -72,6 +79,8 @@ type PKIGenerateIntermediateResponse struct {
 		PrivateKey     string `json:"private_key"`
 		PrivateKeyType string `json:"private_key_type"`
 	} `json:"data"`
+	Warnings  []string `json:"warnings"`
+	MountType string   `json:"mount_type"`
 }
 
 func (k *PKI) GenerateIntermediate(intermediateType string, pkiopts PKIGenerateIntermediateOptions) (*PKIGenerateIntermediateResponse, error) {
@@ -252,7 +261,7 @@ func (k *PKI) ReadIssuer(issuerName string) (*PKIReadIssuerResponse, error) {
 		}, response, nil,
 	)
 	if err != nil {
-		return nil, err
+		return nil, k.mapError(err)
 	}
 
 	return response, nil
@@ -286,4 +295,17 @@ func (k *PKI) RevokeIssuer(issuerName string) (*PKIRevokeIssuerResponse, error) 
 	}
 
 	return response, nil
+}
+
+func (k *PKI) mapError(err error) error {
+	resErr := &api.ResponseError{}
+	if errors.As(err, &resErr) {
+		if resErr.StatusCode == http.StatusInternalServerError {
+			if strings.Contains(err.Error(), "unable to find PKI issuer for reference") {
+				return nil
+			}
+		}
+	}
+
+	return err
 }
